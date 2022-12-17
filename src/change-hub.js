@@ -1,6 +1,6 @@
 import { getReticulumFetchUrl, hubUrl } from "./utils/phoenix-utils";
 import { updateEnvironmentForHub, getSceneUrlForHub, updateUIForHub, remountUI } from "./hub";
-import { loadStoredRoomData, loadLegacyRoomObjects } from "./utils/load-room-objects";
+import { loadEntityMessages, loadStoredRoomData, loadLegacyRoomObjects } from "./utils/load-room-objects";
 import qsTruthy from "./utils/qs_truthy";
 import { localClientID, pendingMessages, pendingParts } from "./bit-systems/networking";
 import { storedUpdates } from "./bit-systems/network-receive-system";
@@ -135,6 +135,7 @@ export async function changeHub(hubId, addToHistory = true, waypoint = null) {
   ]);
 
   if (qsTruthy("newLoader")) {
+    loadEntityMessages(hubId);
     loadStoredRoomData(hubId);
     loadLegacyRoomObjects(hubId);
   } else {

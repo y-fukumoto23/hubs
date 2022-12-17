@@ -5,7 +5,7 @@ import { HoveredRemoteRight, Interacted, ObjectMenu, ObjectMenuTarget } from "..
 import { anyEntityWith, findAncestorWithComponent } from "../utils/bit-utils";
 import HubChannel from "../utils/hub-channel";
 import type { EntityID } from "../utils/networking-types";
-import { tryPin, tryUnpin } from "../utils/store-networked-state";
+import { tryPin2, tryPin, tryUnpin, tryUnpin2 } from "../utils/store-networked-state";
 import { setMatrixWorld } from "../utils/three-utils";
 import { isPinned } from "./networking";
 
@@ -36,10 +36,12 @@ function moveToTarget(world: HubsWorld, menu: EntityID) {
 function handleClicks(world: HubsWorld, menu: EntityID, hubChannel: HubChannel) {
   if (clicked(world, ObjectMenu.pinButtonRef[menu])) {
     console.log("Clicked pin");
-    tryPin(world, ObjectMenu.targetRef[menu], hubChannel);
+    tryPin2(world, ObjectMenu.targetRef[menu], hubChannel);
   } else if (clicked(world, ObjectMenu.unpinButtonRef[menu])) {
     console.log("Clicked unpin");
-    tryUnpin(world, ObjectMenu.targetRef[menu], hubChannel);
+
+    tryUnpin2(world, ObjectMenu.targetRef[menu], hubChannel);
+    // tryUnpin(world, ObjectMenu.targetRef[menu], hubChannel);
   } else if (clicked(world, ObjectMenu.cameraFocusButtonRef[menu])) {
     console.log("Clicked focus");
   } else if (clicked(world, ObjectMenu.cameraTrackButtonRef[menu])) {

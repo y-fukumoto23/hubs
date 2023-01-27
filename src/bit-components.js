@@ -229,3 +229,8 @@ export const VideoTextureTarget = defineComponent({
   flags: Types.ui8
 });
 export const SimpleWater = defineComponent();
+
+export const ParticleEmitterTag = defineComponent({
+  src: Types.ui32,
+  updateParticles: Types.ui8
+});

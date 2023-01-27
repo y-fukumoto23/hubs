@@ -73,6 +73,7 @@ import { inflateVideoTextureTarget, VideoTextureTargetParams } from "../inflator
 import { inflateUVScroll, UVScrollParams } from "../inflators/uv-scroll";
 import { SimpleWaterParams, inflateSimpleWater } from "../inflators/simple-water";
 import { inflatePDF, PDFParams } from "../inflators/pdf";
+import { inflateParticleEmitter, ParticleEmitterParams } from "../inflators/particle-emitter";
 
 preload(
   new Promise(resolve => {
@@ -225,6 +226,7 @@ export interface ComponentData {
   grabbable?: GrabbableParams;
   billboard?: { onlyY: boolean };
   simpleWater?: SimpleWaterParams;
+  particleEmitter?: ParticleEmitterParams;
 }
 
 export interface JSXComponentData extends ComponentData {
@@ -366,7 +368,8 @@ export const commonInflators: Required<{ [K in keyof ComponentData]: InflatorFn 
 
   // inflators that create Object3Ds
   directionalLight: inflateDirectionalLight,
-  simpleWater: inflateSimpleWater
+  simpleWater: inflateSimpleWater,
+  particleEmitter: inflateParticleEmitter
 };
 
 const jsxInflators: Required<{ [K in keyof JSXComponentData]: InflatorFn }> = {

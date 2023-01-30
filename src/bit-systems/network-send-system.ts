@@ -9,6 +9,7 @@ import {
   isNetworkInstantiated,
   localClientID,
   networkedQuery,
+  disconnectedClientIds,
   pendingJoins,
   softRemovedEntities
 } from "./networking";
@@ -45,7 +46,7 @@ export function networkSendSystem(world: HubsWorld) {
     });
   }
 
-  // Tell joining users about entities I network instantiated, and full updates for entities I own
+  // Send newly joined clients creates for entities where I am the creator, and full updates for entities I own
   {
     if (pendingJoins.length) {
       const ownedNetworkedEntities = ownedNetworkedQuery(world);
@@ -57,9 +58,11 @@ export function networkSendSystem(world: HubsWorld) {
         [],
         false
       );
-      if (message) {
-        pendingJoins.forEach(clientId => NAF.connection.sendDataGuaranteed(APP.getString(clientId)!, "nn", message));
-      }
+      pendingJoins.forEach(clientId => {
+        if (message) {
+          NAF.connection.sendDataGuaranteed(APP.getString(clientId)!, "nn", message);
+        }
+      });
       pendingJoins.length = 0;
     }
   }

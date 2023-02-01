@@ -18,7 +18,7 @@ import {
 } from "../bit-components";
 import { gltfCache } from "../components/gltf-model-plus";
 import { releaseTextureByKey } from "../utils/load-texture";
-import { disposeMaterial, traverseSome } from "../utils/three-utils";
+import { disposeMaterial, disposeNode, traverseSome } from "../utils/three-utils";
 
 function cleanupObjOnExit(Component, f) {
   const query = exitQuery(defineQuery([Component]));
@@ -76,8 +76,7 @@ const cleanupSimpleWaters = cleanupObjOnExit(SimpleWater, obj => {
   }
 });
 const cleanupParticleSystem = cleanupObjOnExit(ParticleEmitterTag, obj => {
-  disposeMaterial(obj.material);
-  obj.geometry.dispose();
+  disposeNode(obj);
 });
 
 // TODO This feels messy and brittle

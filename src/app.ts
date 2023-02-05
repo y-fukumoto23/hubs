@@ -1,4 +1,3 @@
-import * as bitecs from "bitecs";
 import { addEntity, createWorld, IWorld } from "bitecs";
 import "./aframe-to-bit-components";
 import { AEntity, Networked, Object3DTag, Owned } from "./bit-components";
@@ -14,6 +13,7 @@ import { EffectComposer, EffectPass } from "postprocessing";
 import {
   Audio,
   AudioListener,
+  Material,
   Object3D,
   PerspectiveCamera,
   PositionalAudio,
@@ -31,7 +31,6 @@ import { store } from "./utils/store-instance";
 
 declare global {
   interface Window {
-    $B: typeof bitecs;
     $O: (eid: number) => Object3D | undefined;
     APP: App;
   }
@@ -50,14 +49,26 @@ export interface HubsWorld extends IWorld {
   deletedNids: Set<number>;
   nid2eid: Map<number, number>;
   eid2obj: Map<number, Object3D>;
+  eid2mat: Map<number, Material>;
   time: { delta: number; elapsed: number; tick: number };
 }
 
-window.$B = bitecs;
+let resolvePromiseToScene: (value: Scene) => void;
+const promiseToScene: Promise<Scene> = new Promise(resolve => {
+  resolvePromiseToScene = resolve;
+});
+export function getScene() {
+  return promiseToScene;
+}
+
+interface HubDescription {
+  hub_id: string;
+}
 
 export class App {
   scene?: AScene;
   hubChannel?: HubChannel;
+  hub?: HubDescription;
   mediaDevicesManager?: MediaDevicesManager;
   entryManager?: SceneEntryManager;
   messageDispatch?: any;
@@ -104,6 +115,7 @@ export class App {
     this.store = store;
     // TODO: Create accessor / update methods for these maps / set
     this.world.eid2obj = new Map();
+    this.world.eid2mat = new Map();
 
     this.world.nid2eid = new Map();
     this.world.deletedNids = new Set();
@@ -192,8 +204,10 @@ export class App {
       tick: 0
     };
 
-    this.world.scene = sceneEl.object3D;
+    this.scene = sceneEl;
     const scene = sceneEl.object3D;
+    this.world.scene = scene;
+    resolvePromiseToScene(scene);
 
     // We manually call scene.updateMatrixWolrd in mainTick
     scene.autoUpdate = false;

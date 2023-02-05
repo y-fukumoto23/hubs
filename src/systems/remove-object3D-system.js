@@ -3,18 +3,21 @@ import {
   AudioEmitter,
   EnvironmentSettings,
   GLTFModel,
-  MediaImage,
+  LightTag,
+  MaterialTag,
   MediaFrame,
+  MediaImage,
   MediaVideo,
   Object3DTag,
+  SimpleWater,
+  Skybox,
   Slice9,
   Text,
   VideoMenu
 } from "../bit-components";
 import { gltfCache } from "../components/gltf-model-plus";
 import { releaseTextureByKey } from "../utils/load-texture";
-import { disposeTexture } from "../utils/material-utils";
-import { traverseSome } from "../utils/three-utils";
+import { disposeMaterial, traverseSome } from "../utils/three-utils";
 
 function cleanupObjOnExit(Component, f) {
   const query = exitQuery(defineQuery([Component]));
@@ -40,6 +43,7 @@ const cleanupGLTFs = cleanupObjOnExit(GLTFModel, obj => {
     obj.dispose();
   }
 });
+const cleanupLights = cleanupObjOnExit(LightTag, obj => obj.dispose());
 const cleanupTexts = cleanupObjOnExit(Text, obj => obj.dispose());
 const cleanupMediaFrames = cleanupObjOnExit(MediaFrame, obj => obj.geometry.dispose());
 const cleanupAudioEmitters = cleanupObjOnExit(AudioEmitter, obj => {
@@ -52,11 +56,23 @@ const cleanupImages = cleanupObjOnExit(MediaImage, obj => {
   obj.geometry.dispose();
 });
 const cleanupVideos = cleanupObjOnExit(MediaVideo, obj => {
-  disposeTexture(obj.material.map);
+  disposeMaterial(obj.material);
   obj.geometry.dispose();
 });
 const cleanupEnvironmentSettings = cleanupOnExit(EnvironmentSettings, eid => {
   EnvironmentSettings.map.delete(eid);
+});
+const cleanupSkyboxes = cleanupObjOnExit(Skybox, obj => {
+  disposeMaterial(obj.sky.material);
+  obj.sky.geometry.dispose();
+});
+const cleanupSimpleWaters = cleanupObjOnExit(SimpleWater, obj => {
+  obj.geometry.dispose();
+  if (Array.isArray(obj.material)) {
+    obj.material.forEach(material => material.dispose());
+  } else {
+    obj.material.dispose();
+  }
 });
 
 // TODO This feels messy and brittle
@@ -74,11 +90,17 @@ const cleanupEnvironmentSettings = cleanupOnExit(EnvironmentSettings, eid => {
 //      When we remove an AFRAME entity, AFRAME will call `removeEntity` for all of its descendants,
 //      which means we will remove each descendent from its parent.
 const exitedObject3DQuery = exitQuery(defineQuery([Object3DTag]));
+const exitedMaterialQuery = exitQuery(defineQuery([MaterialTag]));
 export function removeObject3DSystem(world) {
-  function removeFromMap(eid) {
+  function removeObjFromMap(eid) {
     const o = world.eid2obj.get(eid);
     world.eid2obj.delete(eid);
-    o.eid = null;
+    o.eid = 0;
+  }
+  function removeFromMatMap(eid) {
+    const m = world.eid2mat.get(eid);
+    world.eid2mat.delete(eid);
+    m.eid = 0;
   }
 
   // TODO  write removeObject3DEntity to do this work up-front,
@@ -101,16 +123,21 @@ export function removeObject3DSystem(world) {
   });
 
   // cleanup any component specific resources
+  // NOTE These are done here as opposed to in other systems because the eid2obj and eid2mat maps are cleared of removed entities at the end of this system.
   cleanupGLTFs(world);
   cleanupSlice9s(world);
+  cleanupLights(world);
   cleanupTexts(world);
   cleanupMediaFrames(world);
   cleanupImages(world);
   cleanupVideos(world);
   cleanupEnvironmentSettings(world);
   cleanupAudioEmitters(world);
+  cleanupSkyboxes(world);
+  cleanupSimpleWaters(world);
 
   // Finally remove all the entities we just removed from the eid2obj map
-  entities.forEach(removeFromMap);
-  exitedObject3DQuery(world).forEach(removeFromMap);
+  entities.forEach(removeObjFromMap);
+  exitedObject3DQuery(world).forEach(removeObjFromMap);
+  exitedMaterialQuery(world).forEach(removeFromMatMap);
 }

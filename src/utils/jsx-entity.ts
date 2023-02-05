@@ -1,8 +1,10 @@
-import { addComponent, addEntity, Component, ComponentType, hasComponent } from "bitecs";
+import { addComponent, addEntity, Component, hasComponent } from "bitecs";
 import { preloadFont } from "troika-three-text";
 import {
   $isStringType,
   CameraTool,
+  ObjectMenu,
+  PDFMenu,
   CursorRaycastable,
   DestroyAtExtremeDistance,
   FloatyObject,
@@ -30,27 +32,47 @@ import {
   SceneLoader,
   NavMesh,
   SceneRoot,
-  EnvironmentSettings
+  NetworkDebug,
+  WaypointPreview,
+  NetworkedFloatyObject,
+  Billboard,
+  MaterialTag,
+  VideoTextureSource
 } from "../bit-components";
 import { inflateMediaLoader } from "../inflators/media-loader";
 import { inflateMediaFrame } from "../inflators/media-frame";
 import { GrabbableParams, inflateGrabbable } from "../inflators/grabbable";
 import { inflateImage } from "../inflators/image";
 import { inflateVideo } from "../inflators/video";
+import { inflatePDFLoader, PDFLoaderParams } from "../inflators/pdf-loader";
 import { inflateVideoLoader, VideoLoaderParams } from "../inflators/video-loader";
 import { inflateImageLoader, ImageLoaderParams } from "../inflators/image-loader";
 import { inflateModel, ModelParams } from "../inflators/model";
 import { inflateSlice9 } from "../inflators/slice9";
 import { inflateText } from "../inflators/text";
-import { inflateEnvironmentSettings } from "../inflators/environment-settings";
+import {
+  BackgroundParams,
+  EnvironmentSettingsParams,
+  FogParams,
+  inflateBackground,
+  inflateEnvironmentSettings,
+  inflateFog
+} from "../inflators/environment-settings";
+import { inflateSpawnpoint, inflateWaypoint, WaypointParams } from "../inflators/waypoint";
 import { inflateReflectionProbe, ReflectionProbeParams } from "../inflators/reflection-probe";
 import { HubsWorld } from "../app";
-import { Group, Object3D, Texture, VideoTexture } from "three";
+import { Group, Material, Object3D, Texture, VideoTexture } from "three";
 import { AlphaMode } from "./create-image-mesh";
 import { MediaLoaderParams } from "../inflators/media-loader";
 import { preload } from "./preload";
 import { DirectionalLightParams, inflateDirectionalLight } from "../inflators/directional-light";
 import { ProjectionMode } from "./projection-mode";
+import { inflateSkybox, SkyboxParams } from "../inflators/skybox";
+import { inflateSpawner, SpawnerParams } from "../inflators/spawner";
+import { inflateVideoTextureTarget, VideoTextureTargetParams } from "../inflators/video-texture-target";
+import { inflateUVScroll, UVScrollParams } from "../inflators/uv-scroll";
+import { SimpleWaterParams, inflateSimpleWater } from "../inflators/simple-water";
+import { inflatePDF, PDFParams } from "../inflators/pdf";
 
 preload(
   new Promise(resolve => {
@@ -65,12 +87,12 @@ const reservedAttrs = ["position", "rotation", "scale", "visible", "name", "laye
 
 export class Ref {
   current: number | null;
-  constructor() {
-    this.current = null;
+  constructor(value: number | null) {
+    this.current = value;
   }
 }
-export function createRef() {
-  return new Ref();
+export function createRef(value: number | null = null) {
+  return new Ref(value);
 }
 
 export function resolveRef(world: HubsWorld, ref: Ref) {
@@ -80,8 +102,8 @@ export function resolveRef(world: HubsWorld, ref: Ref) {
   return ref.current;
 }
 
-type ArrayVec3 = [x: number, y: number, z: number];
-type Attrs = {
+export type ArrayVec3 = [x: number, y: number, z: number];
+export type Attrs = {
   position?: ArrayVec3;
   rotation?: ArrayVec3;
   scale?: ArrayVec3;
@@ -160,8 +182,15 @@ export function swapObject3DComponent(world: HubsWorld, eid: number, obj: Object
   return eid;
 }
 
-// TODO HACK gettting internal bitecs symbol, should expose an API to check a properties type
-const $isEidType = Object.getOwnPropertySymbols(CameraTool.screenRef).find(s => s.description === "isEidType");
+export function addMaterialComponent(world: HubsWorld, eid: number, mat: Material) {
+  if (hasComponent(world, MaterialTag, eid)) {
+    throw new Error("Tried to add an Material tag to an entity that already has one");
+  }
+  addComponent(world, MaterialTag, eid);
+  world.eid2mat.set(eid, mat);
+  mat.eid = eid;
+  return eid;
+}
 
 const createDefaultInflator = (C: Component, defaults = {}): InflatorFn => {
   return (world, eid, componentProps) => {
@@ -179,8 +208,6 @@ const createDefaultInflator = (C: Component, defaults = {}): InflatorFn => {
           throw new TypeError(`Expected ${propName} to be a string, got an ${typeof value} (${value})`);
         }
         prop[eid] = APP.getSid(value);
-      } else if (prop[$isEidType!]) {
-        prop[eid] = resolveRef(world, value);
       } else {
         prop[eid] = value;
       }
@@ -196,12 +223,15 @@ interface InflatorFn {
 export interface ComponentData {
   directionalLight?: DirectionalLightParams;
   grabbable?: GrabbableParams;
+  billboard?: { onlyY: boolean };
+  simpleWater?: SimpleWaterParams;
 }
 
 export interface JSXComponentData extends ComponentData {
   slice9?: {
     size: [width: number, height: number];
     insets: [top: number, buttom: number, left: number, right: number];
+    texture: Texture;
   };
   image?: {
     texture: Texture;
@@ -245,7 +275,29 @@ export interface JSXComponentData extends ComponentData {
   rigidbody?: any;
   physicsShape?: any;
   floatyObject?: any;
+  networkedFloatyObject?: any;
   networkedTransform?: any;
+  objectMenu?: {
+    pinButtonRef: Ref;
+    unpinButtonRef: Ref;
+    cameraFocusButtonRef: Ref;
+    cameraTrackButtonRef: Ref;
+    removeButtonRef: Ref;
+    dropButtonRef: Ref;
+    inspectButtonRef: Ref;
+    deserializeDrawingButtonRef: Ref;
+    openLinkButtonRef: Ref;
+    refreshButtonRef: Ref;
+    cloneButtonRef: Ref;
+    rotateButtonRef: Ref;
+    mirrorButtonRef: Ref;
+    scaleButtonRef: Ref;
+  };
+  pdfMenu?: {
+    prevButtonRef: Ref;
+    nextButtonRef: Ref;
+    pageLabelRef: Ref;
+  };
   cameraTool?: {
     snapMenuRef: Ref;
     nextButtonRef: Ref;
@@ -268,14 +320,29 @@ export interface JSXComponentData extends ComponentData {
   object3D?: any;
   text?: any;
   model?: ModelParams;
+  networkDebug?: boolean;
+  waypointPreview?: boolean;
+  pdf?: PDFParams;
 }
 
 export interface GLTFComponentData extends ComponentData {
+  pdf?: PDFLoaderParams;
   video?: VideoLoaderParams;
   image?: ImageLoaderParams;
-  environmentSettings?: any;
+  environmentSettings?: EnvironmentSettingsParams;
   reflectionProbe?: ReflectionProbeParams;
-  navMesh?: boolean;
+  navMesh?: true;
+  waypoint?: WaypointParams;
+  spawner: SpawnerParams;
+  uvScroll: UVScrollParams;
+  videoTextureTarget: VideoTextureTargetParams;
+  videoTextureSource: { fps: number; resolution: [x: number, y: number] };
+
+  // deprecated
+  spawnPoint?: true;
+  skybox: SkyboxParams;
+  fog: FogParams;
+  background: BackgroundParams;
 }
 
 declare global {
@@ -295,9 +362,11 @@ declare global {
 
 export const commonInflators: Required<{ [K in keyof ComponentData]: InflatorFn }> = {
   grabbable: inflateGrabbable,
+  billboard: createDefaultInflator(Billboard),
 
   // inflators that create Object3Ds
-  directionalLight: inflateDirectionalLight
+  directionalLight: inflateDirectionalLight,
+  simpleWater: inflateSimpleWater
 };
 
 const jsxInflators: Required<{ [K in keyof JSXComponentData]: InflatorFn }> = {
@@ -317,10 +386,13 @@ const jsxInflators: Required<{ [K in keyof JSXComponentData]: InflatorFn }> = {
   rigidbody: createDefaultInflator(Rigidbody),
   physicsShape: createDefaultInflator(PhysicsShape),
   floatyObject: createDefaultInflator(FloatyObject),
+  networkedFloatyObject: createDefaultInflator(NetworkedFloatyObject),
   makeKinematicOnRelease: createDefaultInflator(MakeKinematicOnRelease),
   destroyAtExtremeDistance: createDefaultInflator(DestroyAtExtremeDistance),
   networkedTransform: createDefaultInflator(NetworkedTransform),
   networked: createDefaultInflator(Networked),
+  objectMenu: createDefaultInflator(ObjectMenu),
+  pdfMenu: createDefaultInflator(PDFMenu),
   cameraTool: createDefaultInflator(CameraTool, { captureDurIdx: 1 }),
   animationMixer: createDefaultInflator(AnimationMixer),
   networkedVideo: createDefaultInflator(NetworkedVideo),
@@ -328,6 +400,9 @@ const jsxInflators: Required<{ [K in keyof JSXComponentData]: InflatorFn }> = {
   videoMenuItem: createDefaultInflator(VideoMenuItem),
   sceneRoot: createDefaultInflator(SceneRoot),
   sceneLoader: createDefaultInflator(SceneLoader),
+  networkDebug: createDefaultInflator(NetworkDebug),
+  waypointPreview: createDefaultInflator(WaypointPreview),
+  pdf: inflatePDF,
   mediaLoader: inflateMediaLoader,
 
   // inflators that create Object3Ds
@@ -342,11 +417,21 @@ const jsxInflators: Required<{ [K in keyof JSXComponentData]: InflatorFn }> = {
 
 export const gltfInflators: Required<{ [K in keyof GLTFComponentData]: InflatorFn }> = {
   ...commonInflators,
+  pdf: inflatePDFLoader,
   video: inflateVideoLoader,
   image: inflateImageLoader,
   reflectionProbe: inflateReflectionProbe,
   navMesh: createDefaultInflator(NavMesh),
-  environmentSettings: inflateEnvironmentSettings
+  waypoint: inflateWaypoint,
+  environmentSettings: inflateEnvironmentSettings,
+  fog: inflateFog,
+  background: inflateBackground,
+  spawnPoint: inflateSpawnpoint,
+  skybox: inflateSkybox,
+  spawner: inflateSpawner,
+  videoTextureTarget: inflateVideoTextureTarget,
+  videoTextureSource: createDefaultInflator(VideoTextureSource),
+  uvScroll: inflateUVScroll
 };
 
 function jsxInflatorExists(name: string): name is keyof JSXComponentData {
@@ -362,6 +447,13 @@ export function renderAsEntity(world: HubsWorld, entityDef: EntityDef) {
   Object.keys(entityDef.components).forEach(name => {
     if (!jsxInflatorExists(name)) {
       throw new Error(`Failed to inflate unknown component called ${name}`);
+    }
+    const props = entityDef.components[name];
+    for (const propName in props) {
+      const value = props[propName];
+      if (value instanceof Ref) {
+        props[propName] = resolveRef(world, value);
+      }
     }
     jsxInflators[name](world, eid, entityDef.components[name]);
   });

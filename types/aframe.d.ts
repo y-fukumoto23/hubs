@@ -1,5 +1,5 @@
 declare module "aframe" {
-  import { Scene, Clock, Object3D, Mesh } from "three";
+  import { Scene, Clock, Object3D, Mesh, WebGLRenderer } from "three";
 
   interface AElement extends HTMLElement {
     object3D: Object3D;
@@ -84,9 +84,19 @@ declare module "aframe" {
     mesh?: Mesh;
   }
 
+  interface PersonalSpaceInvader extends AComponent {
+    enable(): void;
+    disable(): void;
+  }
+
+  interface PersonalSpaceBubbleSystem extends ASystem {
+    invaders: PersonalSpaceInvader[];
+  }
+
   interface AScene extends AElement {
     object3D: Scene;
     renderStarted: boolean;
+    renderer: WebGLRenderer;
     tick(time: number, delta: number): void;
     isPlaying: boolean;
     behaviors: {
@@ -96,6 +106,7 @@ declare module "aframe" {
     systemNames: Array<keyof AScene["systems"]>;
     systems: {
       "hubs-systems": HubsSystems;
+      "personal-space-bubble": PersonalSpaceBubbleSystem;
       userinput: UserInputSystem;
       /** @deprecated see bit-interaction-system */
       interaction: InteractionSystem;
@@ -106,10 +117,18 @@ declare module "aframe" {
     is(string): boolean;
   }
 
+  interface Device {
+    isMobileVR: Function;
+  }
+  interface Utils {
+    device: Device;
+  }
+
   declare global {
     const AFRAME: {
       registerSystem(name: string, def: Partial<ASystem>);
       scenes: AScene[];
+      utils: Util;
     };
   }
 }
